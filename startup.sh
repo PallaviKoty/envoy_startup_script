@@ -450,32 +450,55 @@ check_ports()
         esac
 }
 
+install_gensiys()
+{
+  local local_repo_name
+  local local_branch_name
+  read -p "Enter the name of the local repository: " local_repo_name
+  echo    # (optional) move to a new line
+  read -p "Enter the name of the branch: " local_branch_name
+  echo "Installing genisys from local repository"
+  pip install git+https://github.com/$local_repo_name/genisys.git@$local_branch_name\#egg:genisys
+  echo "Done installing"
+}
+
+uninstall_genisys(){
+  read -p "Are you sure to uninstall genisys?[Y/y] " -n 1 -r
+  echo    # (optional) move to a new line
+  if [[ $REPLY =~ ^[Yy]$ ]]
+  then
+    pip uninstall -y genisys
+    sleep 1
+  fi
+}
 
 # function to display menus
 show_menus() {
     echo "Refreshing..."
     clear
     echo "~~~~~~~~~~~~~~~~~~~~~"
-    echo -e " \e[40;38;5;82m\e[30;48;5;82m M I C R O - S E R V I C E - M E N U \e[0m "
+    echo -e " \e[40;38;5;82m\e[30;48;5;82m S T A R T U P - S C R I P T - M E N U \e[0m "
     echo "~~~~~~~~~~~~~~~~~~~~~"
-    echo -e "1. ${GRN} Start Application Servers ${STD}"
-    echo -e "2. ${GRN} Stop Application Servers ${STD}"
-    echo -e "3. ${GRN} Start Application Servers - Production version ${STD}"
-    echo -e "4. ${GRN} Stop Application Servers - Production version ${STD}"
-    echo -e "5. ${GRN} Restart Individual Application Server ${STD}"
-    echo -e "6. ${GRN} Check running application servers ports${STD}"
-    echo -e "7. ${GRN} Upload data to database ${STD}"
-    echo -e "8. ${GRN} Setup environment for all applications ${STD}"
-    echo -e "9. ${GRN} Run unit tests ${STD}"
+    echo -e "1. ${GRN}  Start Application Servers ${STD}"
+    echo -e "2. ${GRN}  Stop Application Servers ${STD}"
+    echo -e "3. ${GRN}  Start Application Servers - Production version ${STD}"
+    echo -e "4. ${GRN}  Stop Application Servers - Production version ${STD}"
+    echo -e "5. ${GRN}  Restart Individual Application Server ${STD}"
+    echo -e "6. ${GRN}  Check running application servers ports${STD}"
+    echo -e "7. ${GRN}  Upload data to database ${STD}"
+    echo -e "8. ${GRN}  Setup environment for all applications ${STD}"
+    echo -e "9. ${GRN}  Run unit tests ${STD}"
     echo -e "10. ${GRN} Generate documents for services ${STD}"
     echo -e "11. ${GRN} Check logs for running services ${STD}"
-    echo -e "12. ${GRN} Exit ${STD}"
+    echo -e "12. ${GRN} Install genisys from local repository ${STD}"
+    echo -e "13. ${GRN} Uninstall genisys ${STD}"
+    echo -e "14. ${GRN} Exit ${STD}"
 }
 
 # read input from the keyboard and take a action
 read_options(){
     local choice
-    read -p "Enter choice [ 1 - 9 ] " choice
+    read -p "Enter choice [ 1 - 14 ] " choice
     case $choice in
         1) start ;;
         2) stop ;;
@@ -488,7 +511,9 @@ read_options(){
         9) run_unit_tests ;;
         10) generate_documents ;;
         11) check_logs ;;
-        12) exit 0;;
+        12) install_gensiys;;
+        13) uninstall_genisys ;;
+        14) exit 0;;
         *) echo -e "${RED}Error...${STD}" && sleep 2
     esac
 }
