@@ -460,6 +460,7 @@ install_gensiys()
   echo "Installing genisys from local repository"
   pip install git+https://github.com/$local_repo_name/genisys.git@$local_branch_name\#egg:genisys
   echo "Done installing"
+  pause
 }
 
 uninstall_genisys(){
@@ -470,6 +471,7 @@ uninstall_genisys(){
     pip uninstall -y genisys
     sleep 1
   fi
+  pause
 }
 
 # function to display menus
