@@ -6,10 +6,15 @@ STD='\033[0;0;39m'
 GRN='\e[92m'
 BLU='\e[104m'
 YLW='\e[33m'
+
+task_port=20002
+ensemble_port=20003
+manager_port=20005
+
 sesto_folder_name=sesto_backup_test
-task_log_file=$HOME/$sesto_folder_name/envoy_server_task/task.log
-manager_log_file=$HOME/$sesto_folder_name/envoy_server_manager/manager.log
-ensemble_log_file=$HOME/$sesto_folder_name/envoy_server_ensemble/ensemble.log
+task_log_file=$HOME/$sesto_folder_name/envoy_server_task/docs/task.log
+manager_log_file=$HOME/$sesto_folder_name/envoy_server_manager/docs/manager.log
+ensemble_log_file=$HOME/$sesto_folder_name/envoy_server_ensemble/docs/ensemble.log
 
 pause(){
     read -p "Press [Enter] key to continue..."
@@ -233,11 +238,16 @@ restart(){
 
 database_update(){
   local path
-  read -p "Enter the path of the python file to update data to the database: " path
+  read -p "All the records in this collection will be removed before adding the new records. Are you sure to remove the records?[Y/y] " -n 1 -r
   echo
-  python3 $path
-  echo "Added to DB"
-
+  if [[ $REPLY =~ ^[Yy]$ ]]
+  then
+    read -p "Enter the name of the python file to update data to the database: " path
+    echo
+    python3 $HOME/$sesto_folder_name/$path
+    echo "New documents added to DB"
+  fi
+  pause
 }
 
 setup_task_environment(){
@@ -389,19 +399,19 @@ check_logs(){
     case $check_log_choice in
           1)
             echo "Displaying logs for task service"
-            tail `/bin/ls -1td $HOME/$sesto_folder_name/envoy_server_task/task.log.*| /usr/bin/head -n1`
+            tail `/bin/ls -1td $HOME/$sesto_folder_name/envoy_server_task/docs/task.log.*| /usr/bin/head -n1`
             sleep 1
             pause
           ;;
           2)
             echo "Displaying logs for ensemble service"
-            tail `/bin/ls -1td $HOME/$sesto_folder_name/envoy_server_ensemble/ensemble.log.*| /usr/bin/head -n1`
+            tail `/bin/ls -1td $HOME/$sesto_folder_name/envoy_server_ensemble/docs/ensemble.log.*| /usr/bin/head -n1`
             sleep 1
             pause
           ;;
           3)
             echo "Displaying logs for manager service"
-            tail `/bin/ls -1td $HOME/$sesto_folder_name/envoy_server_manager/manager.log.*| /usr/bin/head -n1`
+            tail `/bin/ls -1td $HOME/$sesto_folder_name/envoy_server_manager/docs/manager.log.*| /usr/bin/head -n1`
             sleep 1
             pause
           ;;
@@ -418,6 +428,7 @@ show_port_check_options(){
     echo -e "1. ${YLW} Check ports for task service ${STD}"
     echo -e "2. ${YLW} Check ports for ensemble services ${STD}"
     echo -e "3. ${YLW} Check ports for manager services ${STD}"
+    echo -e "4. ${YLW} Check ports for all services ${STD}"
 }
 check_ports()
 {
@@ -428,19 +439,29 @@ check_ports()
     case $check_port_choice in
           1)
             echo "Checking port status for task service"
-            nc -z localhost 20002 && echo "IN USE" || echo "FREE"
+            nc -z localhost $task_port && echo "IN USE" || echo "FREE"
             sleep 1
             pause
           ;;
           2)
             echo "Checking port status for ensemble service"
-            nc -z localhost 20003 && echo "IN USE" || echo "FREE"
+            nc -z localhost $ensemble_port && echo "IN USE" || echo "FREE"
             sleep 1
             pause
           ;;
           3)
             echo "Checking port status for manager service"
-            nc -z localhost 20005 && echo "IN USE" || echo "FREE"
+            nc -z localhost $manager_port && echo "IN USE" || echo "FREE"
+            sleep 1
+            pause
+          ;;
+          4)
+            echo "Checking port status for all services"
+            nc -z localhost $task_port && echo "IN USE" || echo "FREE"
+            sleep 1
+            nc -z localhost $ensemble_port && echo "IN USE" || echo "FREE"
+            sleep 1
+            nc -z localhost $manager_port && echo "IN USE" || echo "FREE"
             sleep 1
             pause
           ;;
@@ -474,6 +495,68 @@ uninstall_genisys(){
   pause
 }
 
+setup_venv(){
+  echo "Setting up virtual environment"
+  cd $HOME/$sesto_folder_name
+#  virtualenv -p /usr/bin/python3 sesto_envoy_venv
+  source sesto_envoy_venv/bin/activate
+  echo "Done setting up virtual environment"
+}
+
+delete_all_collections_from_db(){
+  read -p "Are you sure to delete data from envoy DB?[Y/y] " -n 1 -r
+  echo    # (optional) move to a new line
+  if [[ $REPLY =~ ^[Yy]$ ]]
+  then
+    python3 $HOME/$sesto_folder_name/delete_col.py
+    echo "Deleted all collections"
+  fi
+  pause
+}
+
+show_git_pull_options(){
+  echo "~~~~~~~~~~~~~~~~~~~~~"
+    echo -e " \e[40;38;5;82m\e[30;48;5;82m C H O S E - P O R T - C H E C K I N G - O P T I O N S \e[0m "
+    echo "~~~~~~~~~~~~~~~~~~~~~"
+    echo -e "1. ${YLW} Pull codes for task service ${STD}"
+    echo -e "2. ${YLW} Pull codes for ensemble services ${STD}"
+    echo -e "3. ${YLW} Pull codes for manager services ${STD}"
+    echo -e "4. ${YLW} Pull codes for all services ${STD}"
+}
+check_ports()
+{
+  show_port_check_options
+    local pull_choice
+    read -p "Enter choice [ 1 - 4 ] " pull_choice
+    echo    # (optional) move to a new line
+    case $pull_choice in
+          1)
+            echo "Pulling codes for task service"
+            cd $HOME/$sesto_folder_name/envoy_server_task
+            git pull
+            sleep 1
+            pause
+          ;;
+          2)
+            echo "Pulling codes for ensemble service"
+            cd $HOME/$sesto_folder_name/envoy_server_ensemble
+            git pull
+            sleep 1
+            pause
+          ;;
+          3)
+            echo "Pulling codes for manager service"
+            cd $HOME/$sesto_folder_name/envoy_server_manager
+            git pull
+            sleep 1
+            pause
+          ;;
+          *)
+            echo "Sorry, wrong service choice"
+          ;;
+        esac
+}
+
 # function to display menus
 show_menus() {
     echo "Refreshing..."
@@ -494,13 +577,16 @@ show_menus() {
     echo -e "11. ${GRN} Check logs for running services ${STD}"
     echo -e "12. ${GRN} Install genisys from local repository ${STD}"
     echo -e "13. ${GRN} Uninstall genisys ${STD}"
-    echo -e "14. ${GRN} Exit ${STD}"
+    echo -e "14. ${GRN} Setup virtual environment ${STD}"
+    echo -e "15. ${GRN} Delete all collections from the database ${STD}"
+    echo -e "16. ${GRN} Pull the codes for individual applications from GIT ${STD}"
+    echo -e "17. ${GRN} Exit ${STD}"
 }
 
 # read input from the keyboard and take a action
 read_options(){
     local choice
-    read -p "Enter choice [ 1 - 14 ] " choice
+    read -p "Enter choice [ 1 - 17 ] " choice
     case $choice in
         1) start ;;
         2) stop ;;
@@ -515,7 +601,10 @@ read_options(){
         11) check_logs ;;
         12) install_gensiys;;
         13) uninstall_genisys ;;
-        14) exit 0;;
+        14) setup_venv ;;
+        15) delete_all_collections_from_db ;;
+        16) git_pull;;
+        17) exit 0;;
         *) echo -e "${RED}Error...${STD}" && sleep 2
     esac
 }
