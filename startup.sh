@@ -10,11 +10,13 @@ YLW='\e[33m'
 task_port=20002
 ensemble_port=20003
 manager_port=20005
+payload_port=40001
 
-sesto_folder_name=sesto_backup_test
+sesto_folder_name=sesto_mission_app
 task_log_file=$HOME/$sesto_folder_name/envoy_server_task/docs/task.log
 manager_log_file=$HOME/$sesto_folder_name/envoy_server_manager/docs/manager.log
 ensemble_log_file=$HOME/$sesto_folder_name/envoy_server_ensemble/docs/ensemble.log
+payload_log_file=$HOME/$sesto_folder_name/envoy_amr_payload/docs/payload.log
 
 pause(){
     read -p "Press [Enter] key to continue..."
@@ -27,7 +29,8 @@ show_start_options(){
     echo -e "1. ${YLW} Start task service ${STD}"
     echo -e "2. ${YLW} Start ensemble service ${STD}"
     echo -e "3. ${YLW} Start manager service ${STD}"
-    echo -e "4. ${YLW} Start all services ${STD}"
+    echo -e "4. ${YLW} Start payload service ${STD}"
+    echo -e "5. ${YLW} Start all services ${STD}"
 }
 
 start_task_service(){
@@ -51,18 +54,26 @@ start_manager_service(){
   echo "Started manager service."
 }
 
+start_payload_service(){
+  echo "Starting payload service..."
+  python3 $HOME/$sesto_folder_name/envoy_amr_payload/main.py >> $payload_log_file.$(date "+%Y.%m.%d-%H.%M.%S") 2>&1 &
+  sleep 1
+  echo "Started payload service."
+}
+
 start_all_services(){
   echo "Starting all services..."
   start_task_service
   start_ensemble_service
   start_manager_service
+  start_payload_service
   echo "Started all service."
 }
 
 start(){
     show_start_options
     local start_choice
-    read -p "Enter choice [ 1 - 4 ] " start_choice
+    read -p "Enter choice [ 1 - 5 ] " start_choice
     read -p "Are you sure to start services[Y/y]? " -n 1 -r
     echo    # (optional) move to a new line
     if [[ $REPLY =~ ^[Yy]$ ]]
@@ -81,6 +92,10 @@ start(){
             pause
           ;;
           4)
+            start_payload_service
+            pause
+          ;;
+          5)
             start_all_services
             pause
           ;;
@@ -98,7 +113,8 @@ show_stop_options(){
     echo -e "1. ${YLW} Stop task service ${STD}"
     echo -e "2. ${YLW} Stop ensemble services ${STD}"
     echo -e "3. ${YLW} Stop manager services ${STD}"
-    echo -e "4. ${YLW} Stop all services ${STD}"
+    echo -e "4. ${YLW} Stop payload services ${STD}"
+    echo -e "5. ${YLW} Stop all services ${STD}"
 }
 
 stop_task_service(){
@@ -122,10 +138,17 @@ stop_manager_service(){
   echo "Stopped manager service."
 }
 
+stop_payload_service(){
+  echo "Stopping payload service..."
+  ps -ef | grep "envoy_amr_payload/main.py" | grep -v grep | awk '{print $2}' | xargs kill
+  sleep 1
+  echo "Stopped payload service."
+}
+
 stop(){
     show_stop_options
     local stop_choice
-    read -p "Enter choice [ 1 - 4 ] " stop_choice
+    read -p "Enter choice [ 1 - 5 ] " stop_choice
     read -p "Are you sure to stop services?[Y/y] " -n 1 -r
     echo    # (optional) move to a new line
     if [[ $REPLY =~ ^[Yy]$ ]]
@@ -144,7 +167,11 @@ stop(){
             pause
           ;;
           4)
-            killall
+            stop_payload_service
+            pause
+          ;;
+          5)
+            kill_all
             sleep 1
             pause
           ;;
@@ -173,7 +200,7 @@ stop_production(){
   fi
 }
 
-killall(){
+kill_all(){
   read -p "Are you sure to stop all services?[Y/y] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]
@@ -182,6 +209,7 @@ killall(){
       stop_task_service
       stop_ensemble_service
       stop_manager_service
+      stop_payload_service
       sleep 1
     fi
 }
@@ -193,13 +221,14 @@ show_restart_options(){
     echo -e "1. ${YLW} Restart task service ${STD}"
     echo -e "2. ${YLW} Restart ensemble services ${STD}"
     echo -e "3. ${YLW} Restart manager services ${STD}"
-    echo -e "4. ${YLW} Restart all services ${STD}"
+    echo -e "4. ${YLW} Restart payload services ${STD}"
+    echo -e "5. ${YLW} Restart all services ${STD}"
 }
 
 restart(){
   show_restart_options
     local restart_choice
-    read -p "Enter choice [ 1 - 3 ] " restart_choice
+    read -p "Enter choice [ 1 - 5 ] " restart_choice
     read -p "Are you sure to restart services?[Y/y] " -n 1 -r
     echo    # (optional) move to a new line
     if [[ $REPLY =~ ^[Yy]$ ]]
@@ -224,6 +253,12 @@ restart(){
             pause
           ;;
           4)
+            stop_payload_service
+            start_payload_service
+            sleep 1
+            pause
+          ;;
+          5)
             killall
             start_all_services
             sleep 1
@@ -244,8 +279,8 @@ database_update(){
   then
     read -p "Enter the name of the python file to update data to the database: " path
     echo
-    python3 $HOME/$sesto_folder_name/$path
-    echo "New documents added to DB"
+    mongo localhost:27017/envoydb $HOME/$sesto_folder_name/db_scripts/$path
+    echo "Updated DB"
   fi
   pause
 }
@@ -260,15 +295,15 @@ setup_task_environment(){
 setup_ensemble_environment(){
   echo "Setting up environment for ensemble"
   cd $HOME/$sesto_folder_name/envoy_server_ensemble
-  invoke -c devops environment.setup-mongodb
-  invoke -c devops environment.setup
+  inv -c devops environment.setup-mongodb
+  inv -c devops environment.setup
   echo "Done setting up environment for ensemble"
 }
 
 setup_manager_environment(){
   echo "Setting up environment for manager"
   cd $HOME/$sesto_folder_name/envoy_server_manager
-  invoke -c devops environment.setup
+  inv -c devops environment.setup
   echo "Done setting up environment for manager"
 }
 
@@ -299,12 +334,13 @@ show_unit_test_options(){
     echo -e "1. ${YLW} Run unit tests for task service ${STD}"
     echo -e "2. ${YLW} Run unit tests for ensemble services ${STD}"
     echo -e "3. ${YLW} Run unit tests for manager services ${STD}"
+    echo -e "3. ${YLW} Run unit tests for payload services ${STD}"
 }
 
 run_unit_tests(){
   show_unit_test_options
     local unit_test_choice
-    read -p "Enter choice [ 1 - 2 ] " unit_test_choice
+    read -p "Enter choice [ 1 - 4 ] " unit_test_choice
     echo    # (optional) move to a new line
     case $unit_test_choice in
           1)
@@ -331,6 +367,14 @@ run_unit_tests(){
             sleep 1
             pause
           ;;
+          4)
+            echo "Running unittest for payload service"
+            cd $HOME/$sesto_folder_name/envoy_amr_payload
+            invoke -c devops test.tests
+            echo "Successfully ran unittest for manager service"
+            sleep 1
+            pause
+          ;;
           *)
             echo "Sorry, wrong service choice"
           ;;
@@ -344,12 +388,13 @@ show_document_generation_options(){
     echo -e "1. ${YLW} Generate documents for task service ${STD}"
     echo -e "2. ${YLW} Generate documents for ensemble services ${STD}"
     echo -e "3. ${YLW} Generate documents for manager services ${STD}"
+    echo -e "4. ${YLW} Generate documents for payload services ${STD}"
 }
 
 generate_documents(){
   show_document_generation_options
     local doc_gen_choice
-    read -p "Enter choice [ 1 - 2 ] " doc_gen_choice
+    read -p "Enter choice [ 1 - 4 ] " doc_gen_choice
     echo    # (optional) move to a new line
     case $doc_gen_choice in
           1)
@@ -376,6 +421,14 @@ generate_documents(){
             sleep 1
             pause
           ;;
+          4)
+            echo "Generating documents for payload service"
+            cd $HOME/$sesto_folder_name/envoy_amr_payload
+            invoke -c devops docs.docs
+            echo "Generated documents for payload service"
+            sleep 1
+            pause
+            ;;
           *)
             echo "Sorry, wrong service choice"
           ;;
@@ -389,6 +442,7 @@ show_log_checking_options(){
     echo -e "1. ${YLW} Check logs for task service ${STD}"
     echo -e "2. ${YLW} Check logs for ensemble services ${STD}"
     echo -e "3. ${YLW} Check logs for manager services ${STD}"
+    echo -e "3. ${YLW} Check logs for payload services ${STD}"
 }
 
 check_logs(){
@@ -415,6 +469,12 @@ check_logs(){
             sleep 1
             pause
           ;;
+          4)
+            echo "Displaying logs for payload service"
+            tail `/bin/ls -1td $HOME/$sesto_folder_name/envoy_amr_payload/docs/payload.log.*| /usr/bin/head -n1`
+            sleep 1
+            pause
+          ;;
           *)
             echo "Sorry, wrong service choice"
           ;;
@@ -428,7 +488,8 @@ show_port_check_options(){
     echo -e "1. ${YLW} Check ports for task service ${STD}"
     echo -e "2. ${YLW} Check ports for ensemble services ${STD}"
     echo -e "3. ${YLW} Check ports for manager services ${STD}"
-    echo -e "4. ${YLW} Check ports for all services ${STD}"
+    echo -e "4. ${YLW} Check ports for payload services ${STD}"
+    echo -e "5. ${YLW} Check ports for all services ${STD}"
 }
 check_ports()
 {
@@ -456,12 +517,20 @@ check_ports()
             pause
           ;;
           4)
+            echo "Checking port status for payload service"
+            nc -z localhost $payload_port && echo "IN USE" || echo "FREE"
+            sleep 1
+            pause
+          ;;
+          5)
             echo "Checking port status for all services"
-            nc -z localhost $task_port && echo "IN USE" || echo "FREE"
+            nc -z localhost $task_port && echo "Task Port: IN USE" || echo "Task Port: FREE"
             sleep 1
-            nc -z localhost $ensemble_port && echo "IN USE" || echo "FREE"
+            nc -z localhost $ensemble_port && echo "Ensemble Port: IN USE" || echo "Ensemble Port: FREE"
             sleep 1
-            nc -z localhost $manager_port && echo "IN USE" || echo "FREE"
+            nc -z localhost $manager_port && echo "Manager Port: IN USE" || echo "Manager Port: FREE"
+            sleep 1
+            nc -z localhost $payload_port && echo "Payload Port: IN USE" || echo "Payload Port: FREE"
             sleep 1
             pause
           ;;
@@ -508,7 +577,7 @@ delete_all_collections_from_db(){
   echo    # (optional) move to a new line
   if [[ $REPLY =~ ^[Yy]$ ]]
   then
-    python3 $HOME/$sesto_folder_name/delete_col.py
+    mongo localhost:27017/envoydb $HOME/$sesto_folder_name/db_scripts/delete_all_collections.js
     echo "Deleted all collections"
   fi
   pause
@@ -516,16 +585,18 @@ delete_all_collections_from_db(){
 
 show_git_pull_options(){
   echo "~~~~~~~~~~~~~~~~~~~~~"
-    echo -e " \e[40;38;5;82m\e[30;48;5;82m C H O S E - P O R T - C H E C K I N G - O P T I O N S \e[0m "
+    echo -e " \e[40;38;5;82m\e[30;48;5;82m C H O S E - G I T - P U L L - O P T I O N S \e[0m "
     echo "~~~~~~~~~~~~~~~~~~~~~"
     echo -e "1. ${YLW} Pull codes for task service ${STD}"
     echo -e "2. ${YLW} Pull codes for ensemble services ${STD}"
     echo -e "3. ${YLW} Pull codes for manager services ${STD}"
-    echo -e "4. ${YLW} Pull codes for all services ${STD}"
+    echo -e "4. ${YLW} Pull codes for payload services ${STD}"
+    echo -e "5. ${YLW} Pull codes for all services ${STD}"
 }
-check_ports()
+
+git_pull()
 {
-  show_port_check_options
+  show_git_pull_options
     local pull_choice
     read -p "Enter choice [ 1 - 4 ] " pull_choice
     echo    # (optional) move to a new line
@@ -547,6 +618,13 @@ check_ports()
           3)
             echo "Pulling codes for manager service"
             cd $HOME/$sesto_folder_name/envoy_server_manager
+            git pull
+            sleep 1
+            pause
+          ;;
+          4)
+            echo "Pulling codes for payload service"
+            cd $HOME/$sesto_folder_name/envoy_amr_payload
             git pull
             sleep 1
             pause
